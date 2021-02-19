@@ -1,6 +1,6 @@
 """
-Mini-module containing confound methods to perform spectral
-cleaning of fMRI signals
+Mini-module containing Lomb-Scargle least squares spectral
+interpolation functions
 """
 
 from __future__ import annotations
