@@ -183,10 +183,10 @@ def NU_spectral_interpolation(t: npt.ArrayLike, x: npt.ArrayLike,
     for i in chunks:
 
         coefs = np.empty((i.shape[0], w.shape[0] * 2), dtype=np.float)
-        ts = x[i, :]
+        cx = x[i, :]
 
-        nc = x @ cterm
-        ns = x @ sterm
+        nc = cx @ cterm
+        ns = cx @ sterm
 
         coefs[:, ::2] = nc/dc
         coefs[:, 1::2] = ns/ds
