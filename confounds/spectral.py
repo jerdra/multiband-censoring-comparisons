@@ -153,8 +153,8 @@ def NU_spectral_interpolation(t: npt.ArrayLike, x: npt.ArrayLike,
 
     Args:
         t: Non-uniform sampling times [T x 1]
-        s: Target time-series to sample to [S x 1]
         x: Observed values x_p(t) [P x T]
+        s: Target time-series to sample to [S x 1]
         fs: Sampling frequency
         chunk_size: Perform interpolation in chunks if X is 2 dimensional
             to limit memory consumption
@@ -183,10 +183,10 @@ def NU_spectral_interpolation(t: npt.ArrayLike, x: npt.ArrayLike,
     for i in chunks:
 
         coefs = np.empty((i.shape[0], w.shape[0] * 2), dtype=np.float)
-        ts = ts[i, :]
+        ts = x[i, :]
 
-        nc = ts @ cterm
-        ns = ts @ sterm
+        nc = x @ cterm
+        ns = x @ sterm
 
         coefs[:, ::2] = nc/dc
         coefs[:, 1::2] = ns/ds
