@@ -3,9 +3,9 @@ Provide various strategies to perform cleaning operations
 '''
 
 from __future__ import annotations
-from typing import TYPE_CHECK, Optional
+from typing import TYPE_CHECKING, Optional
 
-if TYPE_CHECK:
+if TYPE_CHECKING:
     from nibabel import Nifti1Image
     import numpy.typing as npt
 
