@@ -30,10 +30,10 @@ class BaseCensor(object):
     '''
     def __init__(self,
                  clean_config: dict,
-                 low_pass: Optional[float],
-                 high_pass: Optional[float],
-                 detrend: Optional[bool],
-                 standardize: Optional[bool],
+                 low_pass: Optional[float] = None,
+                 high_pass: Optional[float] = None,
+                 detrend: Optional[bool] = None,
+                 standardize: Optional[bool] = None,
                  min_contiguous: int = 5):
 
         try:
@@ -91,8 +91,10 @@ class BaseCensor(object):
             "standardize": self._standardize
         }
 
-    def _clean(self, img: Nifti1Image, confounds: pd.DataFrame,
-               clean_settings: Optional[dict]) -> Nifti1Image:
+    def _clean(self,
+               img: Nifti1Image,
+               confounds: pd.DataFrame,
+               clean_settings: Optional[dict] = None) -> Nifti1Image:
         '''
         Perform standard Nilearn signals.clean
         '''
@@ -111,8 +113,10 @@ class BaseCensor(object):
 
         return np.where(nimg.clean_img(img, t_r=t_r, **clean_settings))
 
-    def transform(self, img: Nifti1Image, confounds: pd.DataFrame,
-                  fd_thres: Optional[float]) -> Nifti1Image:
+    def transform(self,
+                  img: Nifti1Image,
+                  confounds: pd.DataFrame,
+                  fd_thres: Optional[float] = 0.5) -> Nifti1Image:
         '''
         Perform Naive censoring method on `img`:
 
@@ -251,17 +255,19 @@ class FiltRegressorCensor(BaseCensor):
     '''
     def __init__(self,
                  clean_config: dict,
-                 low_pass: Optional[float],
-                 high_pass: Optional[float],
-                 detrend: Optional[bool],
-                 standardize: Optional[bool],
+                 low_pass: Optional[float] = None,
+                 high_pass: Optional[float] = None,
+                 detrend: Optional[bool] = None,
+                 standardize: Optional[bool] = None,
                  min_contiguous: int = 5):
 
         super().__init__(clean_config, low_pass, high_pass, detrend,
                          standardize, min_contiguous)
 
-    def transform(self, img: Nifti1Image, confounds: pd.DataFrame,
-                  fd_thres: Optional[float]) -> Nifti1Image:
+    def transform(self,
+                  img: Nifti1Image,
+                  confounds: pd.DataFrame,
+                  fd_thres: Optional[float] = 0.5) -> Nifti1Image:
         '''
         Censor data then clean using regression-based filtering
         '''
