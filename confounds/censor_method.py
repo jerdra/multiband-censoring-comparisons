@@ -167,7 +167,10 @@ class PowersClean(BaseCensor):
         t_r = img.header['pixdim'][4]
         t = np.arange(0, t_r * img.shape[1], t_r)[censor_frames]
         s = censor_frames * t_r
-        interp_vals = lombscargle_interpolate(t=t, x=clean_img, s=s, fs=t_r)
+        interp_vals = lombscargle_interpolate(t=t,
+                                              x=clean_img,
+                                              s=s,
+                                              fs=1 / t_r)
 
         non_censor_frames = [
             i for i in range(img.shape[-1]) if i not in censor_frames
@@ -212,7 +215,7 @@ class LindquistPowersClean(BaseCensor):
         data = nsig.clean(data,
                           low_pass=self._low_pass,
                           high_pass=self._high_pass,
-                          t_r=fs,
+                          t_r=1 / fs,
                           detrend=self._detrend,
                           standardize=self._standardize)
         return data
@@ -226,9 +229,9 @@ class LindquistPowersClean(BaseCensor):
         # Apply pre-regression censoring + filtering
         censor_frames = self._get_censor_frames(confounds['fd'], fd_thres)
         ccf = self._censor_and_filter(self._generate_design(confounds),
-                                      censor_frames, t_r)
+                                      censor_frames, 1 / t_r)
         c_data = self._censor_and_filter(img.get_fdata(caching='unchanged'),
-                                         censor_frames, t_r)
+                                         censor_frames, 1 / t_r)
 
         # Recensor and residualize data
         clean_data = nsig.clean(c_data[:, censor_frames],
@@ -246,7 +249,6 @@ class FiltRegressorCensor(BaseCensor):
     into the regression step in lieu of nilearn's
     temporally dependent butterworth filter.
     '''
-
     def __init__(self,
                  clean_config: dict,
                  low_pass: Optional[float],
