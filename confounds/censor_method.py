@@ -49,6 +49,15 @@ class BaseCensor(object):
                                              False) or standardize
         self._min_contiguous = min_contiguous
 
+    @property
+    def clean_settings(self):
+        return {
+            "low_pass": self._low_pass,
+            "high_pass": self._high_pass,
+            "detrend": self._detrend,
+            "standardize": self._standardize
+        }
+
     def _generate_design(self, confounds: pd.DataFrame) -> npt.ArrayLike:
         return confounds[self._confounds].to_numpy()
 
@@ -82,15 +91,6 @@ class BaseCensor(object):
 
         return initial_mask & np.logical_not(under_min_contiguous)
 
-    @property
-    def clean_settings(self):
-        return {
-            "low_pass": self._low_pass,
-            "high_pass": self._high_pass,
-            "detrend": self._detrend,
-            "standardize": self._standardize
-        }
-
     def _clean(self,
                img: Nifti1Image,
                confounds: pd.DataFrame,
@@ -119,8 +119,9 @@ class BaseCensor(object):
                   drop_trs: Optional[int] = None,
                   fd_thres: Optional[float] = 0.5) -> Nifti1Image:
 
-        self._transform(*_clear_steady_state(img, confounds, drop_trs),
-                        fd_thres)
+        img, confounds = _clear_steady_state(img, confounds, drop_trs)
+        res = self._transform(img, confounds, fd_thres)
+        return res
 
     def _transform(self,
                    img: Nifti1Image,
@@ -357,8 +358,7 @@ def _image_to_signals(img: Nifti1Image) -> npt.ArrayLike:
     return img.get_fdata(caching='unchanged').reshape((nvox, -1))
 
 
-def _clear_steady_state(self,
-                        img: Nifti1Image,
+def _clear_steady_state(img: Nifti1Image,
                         confounds: pd.DataFrame,
                         drop_trs: Optional[int] = None):
     '''
@@ -372,7 +372,8 @@ def _clear_steady_state(self,
             steady_ind = np.where(steady_df < 0)[0]
             drop_trs = int(steady_ind[0])
         else:
-            # TODO: Add logging error
+            logging.error("drop_trs not supplied and steady_state volumes not"
+                          " found in confounds file!")
             raise ValueError
 
     # Construct new image object
