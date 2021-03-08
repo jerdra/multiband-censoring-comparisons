@@ -141,11 +141,11 @@ def Ow(t: npt.ArrayLike, w: npt.ArrayLike) -> npt.ArrayLike:
         CT(t, w, 0, a=2).sum(axis=0))
 
 
-def lomscargle_interpolate(t: npt.ArrayLike,
-                           x: npt.ArrayLike,
-                           s: npt.ArrayLike,
-                           fs: float,
-                           chunk_size: Optional[int] = 100) -> npt.ArrayLike:
+def lombscargle_interpolate(t: npt.ArrayLike,
+                            x: npt.ArrayLike,
+                            s: npt.ArrayLike,
+                            fs: float,
+                            chunk_size: Optional[int] = 100) -> npt.ArrayLike:
     '''
     Perform non-uniform spectral interpolation of a time-series t
     to time-series s

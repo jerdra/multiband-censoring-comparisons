@@ -17,7 +17,7 @@ import nilearn.signal as nsig
 import logging
 
 from .spectral_interpolation import lombscargle_interpolate
-from .design import dct_bandpass, fourier_bandpass
+from .designs import dct_bandpass, fourier_bandpass
 
 logging.basicConfig(format='%(asctime)s %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S %p',
