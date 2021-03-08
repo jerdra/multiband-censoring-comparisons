@@ -116,7 +116,16 @@ class BaseCensor(object):
     def transform(self,
                   img: Nifti1Image,
                   confounds: pd.DataFrame,
+                  drop_trs: Optional[int] = None,
                   fd_thres: Optional[float] = 0.5) -> Nifti1Image:
+
+        self._transform(*_clear_steady_state(img, confounds, drop_trs),
+                        fd_thres)
+
+    def _transform(self,
+                   img: Nifti1Image,
+                   confounds: pd.DataFrame,
+                   fd_thres: Optional[float] = 0.5) -> Nifti1Image:
         '''
         Perform Naive censoring method on `img`:
 
@@ -155,8 +164,8 @@ class PowersClean(BaseCensor):
     def _clean(self):
         return
 
-    def transform(self, img: Nifti1Image, confounds: pd.DataFrame,
-                  fd_thres: float):
+    def _transform(self, img: Nifti1Image, confounds: pd.DataFrame,
+                   fd_thres: float):
 
         # Residualize without censored time-series
         censor_frames = self._get_censor_frames(confounds["fd"], fd_thres)
@@ -224,8 +233,8 @@ class LindquistPowersClean(BaseCensor):
                           standardize=self._standardize)
         return data
 
-    def transform(self, img: Nifti1Image, confounds: pd.DataFrame,
-                  fd_thres: float):
+    def _transform(self, img: Nifti1Image, confounds: pd.DataFrame,
+                   fd_thres: float):
 
         # Get image t_r
         t_r = img.header['pixdim'][4]
@@ -264,10 +273,10 @@ class FiltRegressorCensor(BaseCensor):
         super().__init__(clean_config, low_pass, high_pass, detrend,
                          standardize, min_contiguous)
 
-    def transform(self,
-                  img: Nifti1Image,
-                  confounds: pd.DataFrame,
-                  fd_thres: Optional[float] = 0.5) -> Nifti1Image:
+    def _transform(self,
+                   img: Nifti1Image,
+                   confounds: pd.DataFrame,
+                   fd_thres: Optional[float] = 0.5) -> Nifti1Image:
         '''
         Censor data then clean using regression-based filtering
         '''
@@ -346,3 +355,29 @@ def _image_to_signals(img: Nifti1Image) -> npt.ArrayLike:
 
     nvox = np.prod(img.shape)
     return img.get_fdata(caching='unchanged').reshape((nvox, -1))
+
+
+def _clear_steady_state(self,
+                        img: Nifti1Image,
+                        confounds: pd.DataFrame,
+                        drop_trs: Optional[int] = None):
+    '''
+    Remove steady state volumes
+    '''
+
+    if not drop_trs:
+        steady_cols = [c for c in confounds.columns if "steady" in c]
+        if steady_cols:
+            steady_df = confounds[steady_cols].sum(axis=1).diff()
+            steady_ind = np.where(steady_df < 0)[0]
+            drop_trs = int(steady_ind[0])
+        else:
+            # TODO: Add logging error
+            raise ValueError
+
+    # Construct new image object
+    new_conf = confounds.loc[drop_trs:, :]
+    new_img = nimg.new_img_like(
+        img,
+        img.get_fdata(caching="unchanged")[:, :, :, drop_trs:])
+    return (new_img, new_conf)
