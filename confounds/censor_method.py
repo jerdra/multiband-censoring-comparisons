@@ -47,6 +47,9 @@ class BaseCensor(object):
         self._detrend = clean_config.get("--detrend", False) or detrend
         self._standardize = clean_config.get("--standardize",
                                              False) or standardize
+        if not self._standardize:
+            self._standardize = False
+
         self._min_contiguous = min_contiguous
 
     @property
@@ -73,10 +76,14 @@ class BaseCensor(object):
         frames, it is masked out
         '''
 
-        initial_mask = fds <= fd_thres
+        initial_mask = fds.to_numpy() <= fd_thres
         under_min_contiguous = np.zeros_like(initial_mask)
         start_ind = None
-        for i in np.arange(0, initial_mask.shape[0]):
+
+        if not np.any(initial_mask):
+            return initial_mask
+
+        for i in np.arange(0, len(initial_mask)):
 
             if initial_mask[i] == 1:
                 if start_ind:
@@ -109,9 +116,9 @@ class BaseCensor(object):
             raise
 
         if not clean_settings:
-            clean_settings = self._clean_settings
+            clean_settings = self.clean_settings
 
-        return np.where(nimg.clean_img(img, t_r=t_r, **clean_settings))
+        return nimg.clean_img(img, t_r=t_r, **clean_settings)
 
     def transform(self,
                   img: Nifti1Image,
@@ -136,11 +143,10 @@ class BaseCensor(object):
         '''
 
         clean_img = self._clean(img, self._generate_design(confounds))
-        censor_frames = self._get_censor_frames(confounds['fd'], fd_thres)
+        censor_frames = self._get_censor_frames(
+            confounds['framewise_displacement'], fd_thres)
 
-        # Using this rather than nilearn.image.index_img
-        # since we don't want to store a cached reference
-        censored_img = nimg.new_image_like(
+        censored_img = nimg.new_img_like(
             clean_img,
             clean_img.get_fdata(caching="unchanged")[:, :, :, censor_frames],
             clean_img.affine,
@@ -241,7 +247,8 @@ class LindquistPowersClean(BaseCensor):
         t_r = img.header['pixdim'][4]
 
         # Apply pre-regression censoring + filtering
-        censor_frames = self._get_censor_frames(confounds['fd'], fd_thres)
+        censor_frames = self._get_censor_frames(
+            confounds['framewise_displacement'], fd_thres)
         ccf = self._censor_and_filter(self._generate_design(confounds),
                                       censor_frames, 1 / t_r)
         c_data = self._censor_and_filter(img.get_fdata(caching='unchanged'),
@@ -282,7 +289,8 @@ class FiltRegressorCensor(BaseCensor):
         Censor data then clean using regression-based filtering
         '''
 
-        censor_frames = self._get_censor_frames(confounds['fd'], fd_thres)
+        censor_frames = self._get_censor_frames(
+            confounds['framewise_displacement'], fd_thres)
 
         # Filtering is built into the regressor
         clean_settings = self.clean_settings
@@ -292,7 +300,7 @@ class FiltRegressorCensor(BaseCensor):
                                 self._generate_design(confounds),
                                 clean_settings)
 
-        censored_img = nimg.new_image_like(
+        censored_img = nimg.new_img_like(
             clean_img,
             clean_img.get_fdata(caching="unchanged")[:, :, :, censor_frames],
             clean_img.affine,
@@ -342,11 +350,10 @@ class FourierBasisCensor(FiltRegressorCensor):
 
 
 def _get_vol_index(img: Nifti1Image, inds: npt.ArrayLike) -> Nifti1Image:
-    return nimg.new_image_like(img,
-                               img.get_fdata(caching="unchanged")[:, :, :,
-                                                                  inds],
-                               img.affine,
-                               copy_header=True)
+    return nimg.new_img_like(img,
+                             img.get_fdata(caching="unchanged")[:, :, :, inds],
+                             img.affine,
+                             copy_header=True)
 
 
 def _image_to_signals(img: Nifti1Image) -> npt.ArrayLike:
