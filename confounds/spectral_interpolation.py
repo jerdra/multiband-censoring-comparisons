@@ -164,6 +164,12 @@ def lombscargle_interpolate(t: npt.ArrayLike,
         x_i: Observation array interpolated to S [ P x S ]
     '''
 
+    if len(t.shape) < 2:
+        t = t[:, np.newaxis]
+
+    if len(s.shape) < 2:
+        s = s[:, np.newaxis]
+
     w = get_sampling_w(t)
 
     o = Ow(t, w)
@@ -176,7 +182,7 @@ def lombscargle_interpolate(t: npt.ArrayLike,
     dc = (cterm**2).sum(axis=0)
     ds = (sterm**2).sum(axis=0)
 
-    x_i = np.zeros((s.shape[0], x.shape[0]), dtype=np.float)
+    x_i = np.zeros((x.shape[0], s.shape[0]), dtype=np.float)
 
     num_chunks = x.shape[1] // (chunk_size + 1)
     chunks = np.array_split(np.arange(0, t.shape[0]), num_chunks)

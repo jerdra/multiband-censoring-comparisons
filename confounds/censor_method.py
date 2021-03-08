@@ -175,32 +175,38 @@ class PowersClean(BaseCensor):
                    fd_thres: float):
 
         # Residualize without censored time-series
-        censor_frames = self._get_censor_frames(confounds["fd"], fd_thres)
+        censor_frames = self._get_censor_frames(
+            confounds['framewise_displacement'], fd_thres)
 
-        clean_img = nimg.clean(
+        clean_img = nimg.clean_img(
             _get_vol_index(img, censor_frames),
             detrend=self._detrend,
             standardize=self._standardize,
-            confounds=self._generate_design(confounds).loc[censor_frames, :])
+            confounds=self._generate_design(confounds)[censor_frames, :])
         clean_img = _image_to_signals(clean_img)
 
-        t_r = img.header['pixdim'][4]
-        t = np.arange(0, t_r * img.shape[1], t_r)[censor_frames]
-        s = censor_frames * t_r
-        interp_vals = lombscargle_interpolate(t=t,
-                                              x=clean_img,
-                                              s=s,
-                                              fs=1 / t_r)
+        if not censor_frames.all():
+            t_r = img.header['pixdim'][4]
+            t = np.arange(0, t_r * img.shape[-1], t_r)[censor_frames]
+            s = np.where(np.logical_not(censor_frames))[0] * t_r
+            interp_vals = lombscargle_interpolate(t=t,
+                                                  x=clean_img,
+                                                  s=s,
+                                                  fs=1 / t_r)
 
-        non_censor_frames = [
-            i for i in range(img.shape[-1]) if i not in censor_frames
-        ]
-        out = img.get_fdata()
-        out = np.empty(img.shape, dtype=img.get_data_dtype())
-        out[:, :, :, non_censor_frames] = clean_img.reshape(img.shape)
-        out[:, :, :, censor_frames] = interp_vals
+            non_censor_frames = np.where(np.logical_not(censor_frames))[0]
+            clean_img = clean_img.reshape(
+                (*img.shape[:-1], censor_frames.sum()))
+            interp_vals = interp_vals.reshape(
+                (*img.shape[:-1], len(non_censor_frames)))
 
-        return out
+            out = np.empty(img.shape, dtype=img.get_data_dtype())
+            out[:, :, :, np.where(censor_frames)[0]] = clean_img
+            out[:, :, :, non_censor_frames] = interp_vals
+        else:
+            return nimg.new_img_like(img, clean_img)
+
+        return nimg.new_img_like(img, out)
 
 
 class LindquistPowersClean(BaseCensor):
@@ -361,7 +367,7 @@ def _image_to_signals(img: Nifti1Image) -> npt.ArrayLike:
     Transform a Nibabel image into an [NVOX x T] array
     '''
 
-    nvox = np.prod(img.shape)
+    nvox = np.prod(img.shape[:-1])
     return img.get_fdata(caching='unchanged').reshape((nvox, -1))
 
 
