@@ -7,6 +7,8 @@ from typing import Optional
 import numpy as np
 import numpy.typing as npt
 
+from .spectral_interpolation import get_sampling_w
+
 
 def shifted_fourier(t: npt.ArrayLike,
                     w: npt.ArrayLike,
@@ -54,7 +56,7 @@ def dct_basis(N: int) -> np.ArrayLike:
 
 
 def dct_bandpass(N: int, T: float, low_pass: Optional[float],
-                 high_pass: Optional[float]) -> np.ArrayLike:
+                 high_pass: Optional[float]) -> npt.ArrayLike:
     '''
     Compute the cosine basis function for a time-series of length N
     with period T. Will return filtered frequencies with low_pass
@@ -70,7 +72,34 @@ def dct_bandpass(N: int, T: float, low_pass: Optional[float],
     n = np.arange(0, N)
     dct = dct_basis(N) * (np.sqrt(2 / N))
 
-    ft = n / (2 * N * T)
+    # Remove lowest frequency component
+    ft = n / (2 * N * T)[1:]
 
-    pass_band = np.where((ft < high_pass) | (ft > low_pass))[0][1:]
+    pass_band = np.where((ft < low_pass) & (ft > high_pass))[0]
     return dct[:, pass_band]
+
+
+def fourier_bandpass(N: int, T: float, low_pass: Optional[float],
+                     high_pass: Optional[float]) -> npt.ArrayLike:
+    '''
+    Compute a set of fourier basis functions for a time-series of
+    length N with period T. Will returned filtered frequencies with
+    low_pass or high_pass options
+    '''
+
+    if not low_pass:
+        low_pass = 1e15
+
+    if not high_pass:
+        high_pass = 0
+
+    t = np.arange(0, N) * T
+    w = get_sampling_w(t)
+
+    try:
+        passband = np.where((w < low_pass) & (w > high_pass))
+    except IndexError:
+        # TODO: Add logger error
+        raise
+
+    return shifted_fourier(t, w[passband])

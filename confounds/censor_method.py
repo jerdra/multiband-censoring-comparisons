@@ -17,6 +17,7 @@ import nilearn.signal as nsig
 import logging
 
 from .spectral_interpolation import lombscargle_interpolate
+from .design import dct_bandpass, fourier_bandpass
 
 logging.basicConfig(format='%(asctime)s %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S %p',
@@ -90,7 +91,8 @@ class BaseCensor(object):
             "standardize": self._standardize
         }
 
-    def _clean(self, img: Nifti1Image, confounds: pd.DataFrame) -> Nifti1Image:
+    def _clean(self, img: Nifti1Image, confounds: pd.DataFrame,
+               clean_settings: Optional[dict]) -> Nifti1Image:
         '''
         Perform standard Nilearn signals.clean
         '''
@@ -104,7 +106,10 @@ class BaseCensor(object):
         except IndexError:
             raise
 
-        return np.where(nimg.clean_img(img, t_r=t_r, **self.clean_settings))
+        if not clean_settings:
+            clean_settings = self._clean_settings
+
+        return np.where(nimg.clean_img(img, t_r=t_r, **clean_settings))
 
     def transform(self, img: Nifti1Image, confounds: pd.DataFrame,
                   fd_thres: Optional[float]) -> Nifti1Image:
@@ -235,11 +240,87 @@ class LindquistPowersClean(BaseCensor):
         return nimg.new_img_like(img, clean_data)
 
 
-class DCTBasisCensor(BaseCensor):
+class FiltRegressorCensor(BaseCensor):
+    '''
+    Specialization of BaseCensor to incorporate filtering
+    into the regression step in lieu of nilearn's
+    temporally dependent butterworth filter.
+    '''
+
+    def __init__(self,
+                 clean_config: dict,
+                 low_pass: Optional[float],
+                 high_pass: Optional[float],
+                 detrend: Optional[bool],
+                 standardize: Optional[bool],
+                 min_contiguous: int = 5):
+
+        super().__init__(clean_config, low_pass, high_pass, detrend,
+                         standardize, min_contiguous)
+
+    def transform(self, img: Nifti1Image, confounds: pd.DataFrame,
+                  fd_thres: Optional[float]) -> Nifti1Image:
+        '''
+        Censor data then clean using regression-based filtering
+        '''
+
+        censor_frames = self._get_censor_frames(confounds['fd'], fd_thres)
+
+        # Filtering is built into the regressor
+        clean_settings = self.clean_settings
+        clean_settings.update({"low_pass": None, "high_pass": None})
+
+        clean_img = self._clean(_get_vol_index(img, censor_frames),
+                                self._generate_design(confounds),
+                                clean_settings)
+
+        censored_img = nimg.new_image_like(
+            clean_img,
+            clean_img.get_fdata(caching="unchanged")[:, :, :, censor_frames],
+            clean_img.affine,
+            copy_header=True)
+
+        return censored_img
+
+
+class DCTBasisCensor(FiltRegressorCensor):
     '''
     Performs simultaneous regression and filtering
-    using DCT v1.1
+    using DCT v1.1.
     '''
+    def _generate_design(self, confounds: pd.DataFrame,
+                         fs: float) -> npt.ArrayLike:
+        '''
+        Append DCT regressors to design matrix
+        '''
+
+        # Generate base design matrix
+        X = super()._generate_design(confounds)
+        D = dct_bandpass(N=confounds.shape[0],
+                         T=1 / fs,
+                         low_pass=self._low_pass,
+                         high_pass=self._high_pass)
+        return np.c_[X, D]
+
+
+class FourierBasisCensor(FiltRegressorCensor):
+    '''
+    Performs simultaneous regression and filtering
+    using Fourier basis
+    '''
+    def _generate_design(self, confounds: pd.DataFrame,
+                         fs: float) -> npt.ArrayLike:
+        '''
+        Append fourier series basis to design matrix
+        '''
+
+        X = super()._generate_design(confounds)
+        F = fourier_bandpass(N=confounds.shape[0],
+                             T=1 / fs,
+                             low_pass=self._low_pass,
+                             high_pass=self._high_pass)
+
+        return np.c_[X, F]
 
 
 def _get_vol_index(img: Nifti1Image, inds: npt.ArrayLike) -> Nifti1Image:
