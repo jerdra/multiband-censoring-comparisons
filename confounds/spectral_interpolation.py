@@ -184,8 +184,11 @@ def lombscargle_interpolate(t: npt.ArrayLike,
 
     x_i = np.zeros((x.shape[0], s.shape[0]), dtype=np.float)
 
-    num_chunks = x.shape[1] // (chunk_size + 1)
-    chunks = np.array_split(np.arange(0, t.shape[0]), num_chunks)
+    num_chunks = x.shape[0] // (chunk_size + 1)
+    if num_chunks == 0:
+        chunks = [np.arange(0, x.shape[0])]
+    else:
+        chunks = np.array_split(np.arange(0, x.shape[0]), num_chunks)
 
     for i in chunks:
 

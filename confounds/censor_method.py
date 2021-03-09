@@ -204,9 +204,9 @@ class PowersClean(BaseCensor):
             out[:, :, :, np.where(censor_frames)[0]] = clean_img
             out[:, :, :, non_censor_frames] = interp_vals
         else:
-            return nimg.new_img_like(img, clean_img)
+            return nimg.new_img_like(img, clean_img, copy_header=True)
 
-        return nimg.new_img_like(img, out)
+        return nimg.new_img_like(img, out, copy_header=True)
 
 
 class LindquistPowersClean(BaseCensor):
@@ -228,15 +228,21 @@ class LindquistPowersClean(BaseCensor):
         filter
         '''
 
-        t = np.arange(0, data.shape[0]) * fs
-        s = censor_frames * fs
+        # Get data
+        t = censor_frames * fs
+
+        # Get values to interpolate on
+        interpolate_frames = np.array(
+            [i for i in range(len(t)) if i not in censor_frames])
+        s = interpolate_frames * fs
+
         c_data = data[:, censor_frames]
 
         # Interpolate data indices
-        data[:, censor_frames] = lombscargle_interpolate(t=t,
-                                                         x=c_data,
-                                                         s=s,
-                                                         fs=fs)
+        data[:, interpolate_frames] = lombscargle_interpolate(t=t,
+                                                              x=c_data,
+                                                              s=s,
+                                                              fs=fs)
         # Apply filtering on data
         data = nsig.clean(data,
                           low_pass=self._low_pass,
@@ -255,19 +261,23 @@ class LindquistPowersClean(BaseCensor):
         # Apply pre-regression censoring + filtering
         censor_frames = self._get_censor_frames(
             confounds['framewise_displacement'], fd_thres)
-        ccf = self._censor_and_filter(self._generate_design(confounds),
-                                      censor_frames, 1 / t_r)
-        c_data = self._censor_and_filter(img.get_fdata(caching='unchanged'),
-                                         censor_frames, 1 / t_r)
+        censor_frames = np.where(censor_frames)[0]
+
+        ccf = self._censor_and_filter(
+            self._generate_design(confounds).T, censor_frames, 1 / t_r)
+        c_data = self._censor_and_filter(_image_to_signals(img), censor_frames,
+                                         1 / t_r)
 
         # Recensor and residualize data
-        clean_data = nsig.clean(c_data[:, censor_frames],
-                                confounds=ccf[censor_frames, :],
+        clean_data = nsig.clean(c_data[:, censor_frames].T,
+                                confounds=ccf[:, censor_frames].T,
                                 detrend=False,
                                 standardize=False)
 
         # Now copy image and overwrite data
-        return nimg.new_img_like(img, clean_data)
+        clean_data = clean_data.T.reshape(
+            (*img.shape[:-1], len(censor_frames)))
+        return nimg.new_img_like(img, clean_data, copy_header=True)
 
 
 class FiltRegressorCensor(BaseCensor):
@@ -391,7 +401,8 @@ def _clear_steady_state(img: Nifti1Image,
 
     # Construct new image object
     new_conf = confounds.loc[drop_trs:, :]
-    new_img = nimg.new_img_like(
-        img,
-        img.get_fdata(caching="unchanged")[:, :, :, drop_trs:])
+    new_img = nimg.new_img_like(img,
+                                img.get_fdata(caching="unchanged")[:, :, :,
+                                                                   drop_trs:],
+                                copy_header=True)
     return (new_img, new_conf)
