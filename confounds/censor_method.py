@@ -196,7 +196,7 @@ class PowersClean(BaseCensor):
             res = np.empty(img.shape, dtype=img.get_data_dtype())
             res[:, :, :, mask_frames] = clean_img
             res[:, :, :, censor_frames] = interp_vals
-            res_img = nimg.new_img_like(img, res, copy_headers=True)
+            res_img = nimg.new_img_like(img, res, copy_header=True)
         else:
             res_img = clean_img
 
