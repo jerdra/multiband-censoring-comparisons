@@ -64,7 +64,7 @@ class BaseCensor(object):
     def _generate_design(self, confounds: pd.DataFrame) -> npt.ArrayLike:
         return confounds[self._confounds].to_numpy()
 
-    def _get_censor_frames(self, fds: npt.ArrayLike, fd_thres: float):
+    def _get_censor_mask(self, fds: npt.ArrayLike, fd_thres: float):
         '''
         Apply Powers et al. 2014 censoring method
         using FD trace.
@@ -96,7 +96,8 @@ class BaseCensor(object):
                     under_min_contiguous[start_ind:i] = 1
                 start_ind = False
 
-        return initial_mask & np.logical_not(under_min_contiguous)
+        mask_frames = initial_mask & np.logical_not(under_min_contiguous)
+        return np.where(mask_frames), np.where(np.logical_not(mask_frames))
 
     def _clean(self,
                img: Nifti1Image,
@@ -143,16 +144,10 @@ class BaseCensor(object):
         '''
 
         clean_img = self._clean(img, self._generate_design(confounds))
-        censor_frames = self._get_censor_frames(
+        mask_frames, _ = self._get_censor_mask(
             confounds['framewise_displacement'], fd_thres)
 
-        censored_img = nimg.new_img_like(
-            clean_img,
-            clean_img.get_fdata(caching="unchanged")[:, :, :, censor_frames],
-            clean_img.affine,
-            copy_header=True)
-
-        return censored_img
+        return _get_vol_index(clean_img, mask_frames)
 
 
 class PowersClean(BaseCensor):
@@ -168,45 +163,45 @@ class PowersClean(BaseCensor):
     4. Apply censoring mask again and perform lomb-scargle interpolation
     5. Re-censor data
     '''
-    def _clean(self):
-        return
-
     def _transform(self, img: Nifti1Image, confounds: pd.DataFrame,
                    fd_thres: float):
 
-        # Residualize without censored time-series
-        censor_frames = self._get_censor_frames(
+        t_r = img.header['pixdim'][4]
+        mask_frames, censor_frames = self._get_censor_mask(
             confounds['framewise_displacement'], fd_thres)
 
         clean_img = nimg.clean_img(
-            _get_vol_index(img, censor_frames),
+            _get_vol_index(img, mask_frames),
             detrend=self._detrend,
             standardize=self._standardize,
-            confounds=self._generate_design(confounds)[censor_frames, :])
-        clean_img = _image_to_signals(clean_img)
+            confounds=self._generate_design(confounds)[mask_frames, :])
 
-        if not censor_frames.all():
-            t_r = img.header['pixdim'][4]
-            t = np.arange(0, t_r * img.shape[-1], t_r)[censor_frames]
-            s = np.where(np.logical_not(censor_frames))[0] * t_r
-            interp_vals = lombscargle_interpolate(t=t,
+        if not censor_frames:
+            clean_img = _image_to_signals(clean_img)
+
+            t = np.arange(0, img.shape[-1]) * t_r
+            interp_vals = lombscargle_interpolate(t=t[mask_frames],
                                                   x=clean_img,
-                                                  s=s,
+                                                  s=t[censor_frames],
                                                   fs=1 / t_r)
 
-            non_censor_frames = np.where(np.logical_not(censor_frames))[0]
-            clean_img = clean_img.reshape(
-                (*img.shape[:-1], censor_frames.sum()))
+            clean_img = clean_img.reshape((*img.shape[:-1], len(mask_frames)))
             interp_vals = interp_vals.reshape(
-                (*img.shape[:-1], len(non_censor_frames)))
+                (*img.shape[:-1], len(censor_frames)))
 
-            out = np.empty(img.shape, dtype=img.get_data_dtype())
-            out[:, :, :, np.where(censor_frames)[0]] = clean_img
-            out[:, :, :, non_censor_frames] = interp_vals
+            res = np.empty(img.shape, dtype=img.get_data_dtype())
+            res[:, :, :, mask_frames] = clean_img
+            res[:, :, :, censor_frames] = interp_vals
+            res_img = nimg.new_img_like(img, res, copy_headers=True)
         else:
-            return nimg.new_img_like(img, clean_img, copy_header=True)
+            res_img = clean_img
 
-        return nimg.new_img_like(img, out, copy_header=True)
+        out_img = nimg.clean_img(res_img,
+                                 low_pass=self._low_pass,
+                                 high_pass=self._high_pass,
+                                 t_r=t_r)
+
+        return _get_vol_index(out_img, mask_frames)
 
 
 class LindquistPowersClean(BaseCensor):
@@ -222,34 +217,32 @@ class LindquistPowersClean(BaseCensor):
     5. Perform cleaning
     '''
     def _censor_and_filter(self, data: npt.ArrayLike,
-                           censor_frames: npt.ArrayLike, fs: float):
+                           mask_frames: npt.ArrayLike,
+                           censor_frames: npt.ArrayLike,
+                           fs: float) -> npt.ArrayLike:
         '''
         Censor data, perform lombscargle interpolation,
         filter
         '''
 
-        # Get data
-        t = censor_frames * fs
-
-        # Get values to interpolate on
-        interpolate_frames = np.array(
-            [i for i in range(len(t)) if i not in censor_frames])
-        s = interpolate_frames * fs
-
-        c_data = data[:, censor_frames]
-
         # Interpolate data indices
-        data[:, interpolate_frames] = lombscargle_interpolate(t=t,
-                                                              x=c_data,
-                                                              s=s,
-                                                              fs=fs)
+        if censor_frames:
+            t = fs * mask_frames
+            s = fs * censor_frames
+            data[:,
+                 censor_frames] = lombscargle_interpolate(t=t,
+                                                          x=data[:,
+                                                                 mask_frames],
+                                                          s=s,
+                                                          fs=fs)
+
         # Apply filtering on data
         data = nsig.clean(data,
                           low_pass=self._low_pass,
                           high_pass=self._high_pass,
                           t_r=1 / fs,
-                          detrend=self._detrend,
-                          standardize=self._standardize)
+                          detrend=False,
+                          standardize=False)
         return data
 
     def _transform(self, img: Nifti1Image, confounds: pd.DataFrame,
@@ -257,26 +250,24 @@ class LindquistPowersClean(BaseCensor):
 
         # Get image t_r
         t_r = img.header['pixdim'][4]
+        confounds = self._generate_design(confounds).T
 
         # Apply pre-regression censoring + filtering
-        censor_frames = self._get_censor_frames(
+        mask_frames, censor_frames = self._get_censor_mask(
             confounds['framewise_displacement'], fd_thres)
-        censor_frames = np.where(censor_frames)[0]
-
-        ccf = self._censor_and_filter(
-            self._generate_design(confounds).T, censor_frames, 1 / t_r)
-        c_data = self._censor_and_filter(_image_to_signals(img), censor_frames,
-                                         1 / t_r)
+        c_confounds = self._censor_and_filter(confounds, mask_frames,
+                                              censor_frames, 1 / t_r)
+        c_data = self._censor_and_filter(_image_to_signals(img), mask_frames,
+                                         censor_frames, 1 / t_r)
 
         # Recensor and residualize data
-        clean_data = nsig.clean(c_data[:, censor_frames].T,
-                                confounds=ccf[:, censor_frames].T,
-                                detrend=False,
-                                standardize=False)
+        clean_data = nsig.clean(c_data[:, mask_frames].T,
+                                confounds=c_confounds[:, mask_frames].T,
+                                detrend=self._detrend,
+                                standardize=self._standardize)
 
         # Now copy image and overwrite data
-        clean_data = clean_data.T.reshape(
-            (*img.shape[:-1], len(censor_frames)))
+        clean_data = clean_data.T.reshape((*img.shape[:-1], len(mask_frames)))
         return nimg.new_img_like(img, clean_data, copy_header=True)
 
 
@@ -286,17 +277,6 @@ class FiltRegressorCensor(BaseCensor):
     into the regression step in lieu of nilearn's
     temporally dependent butterworth filter.
     '''
-    def __init__(self,
-                 clean_config: dict,
-                 low_pass: Optional[float] = None,
-                 high_pass: Optional[float] = None,
-                 detrend: Optional[bool] = None,
-                 standardize: Optional[bool] = None,
-                 min_contiguous: int = 5):
-
-        super().__init__(clean_config, low_pass, high_pass, detrend,
-                         standardize, min_contiguous)
-
     def _transform(self,
                    img: Nifti1Image,
                    confounds: pd.DataFrame,
@@ -305,24 +285,19 @@ class FiltRegressorCensor(BaseCensor):
         Censor data then clean using regression-based filtering
         '''
 
-        censor_frames = self._get_censor_frames(
+        mask_frames, _ = self._get_censor_mask(
             confounds['framewise_displacement'], fd_thres)
+        t_r = img.header['pixdim'][4]
 
         # Filtering is built into the regressor
         clean_settings = self.clean_settings
         clean_settings.update({"low_pass": None, "high_pass": None})
 
-        clean_img = self._clean(_get_vol_index(img, censor_frames),
-                                self._generate_design(confounds),
+        clean_img = self._clean(_get_vol_index(img, mask_frames),
+                                self._generate_design(confounds, t_r),
                                 clean_settings)
 
-        censored_img = nimg.new_img_like(
-            clean_img,
-            clean_img.get_fdata(caching="unchanged")[:, :, :, censor_frames],
-            clean_img.affine,
-            copy_header=True)
-
-        return censored_img
+        return clean_img
 
 
 class DCTBasisCensor(FiltRegressorCensor):
@@ -331,7 +306,7 @@ class DCTBasisCensor(FiltRegressorCensor):
     using DCT v1.1.
     '''
     def _generate_design(self, confounds: pd.DataFrame,
-                         fs: float) -> npt.ArrayLike:
+                         T: float) -> npt.ArrayLike:
         '''
         Append DCT regressors to design matrix
         '''
@@ -339,7 +314,7 @@ class DCTBasisCensor(FiltRegressorCensor):
         # Generate base design matrix
         X = super()._generate_design(confounds)
         D = dct_bandpass(N=confounds.shape[0],
-                         T=1 / fs,
+                         T=T,
                          low_pass=self._low_pass,
                          high_pass=self._high_pass)
         return np.c_[X, D]
@@ -351,14 +326,14 @@ class FourierBasisCensor(FiltRegressorCensor):
     using Fourier basis
     '''
     def _generate_design(self, confounds: pd.DataFrame,
-                         fs: float) -> npt.ArrayLike:
+                         T: float) -> npt.ArrayLike:
         '''
         Append fourier series basis to design matrix
         '''
 
         X = super()._generate_design(confounds)
         F = fourier_bandpass(N=confounds.shape[0],
-                             T=1 / fs,
+                             T=T,
                              low_pass=self._low_pass,
                              high_pass=self._high_pass)
 
