@@ -64,7 +64,9 @@ class BaseCensor(object):
     def _generate_design(self, confounds: pd.DataFrame) -> npt.ArrayLike:
         return confounds[self._confounds].to_numpy()
 
-    def _get_censor_mask(self, fds: npt.ArrayLike, fd_thres: float):
+    def _get_censor_mask(
+            self, fds: npt.ArrayLike,
+            fd_thres: float) -> tuple[npt.ArrayLike, npt.ArrayLike]:
         '''
         Apply Powers et al. 2014 censoring method
         using FD trace.
@@ -80,8 +82,9 @@ class BaseCensor(object):
         under_min_contiguous = np.zeros_like(initial_mask)
         start_ind = None
 
-        if not np.any(initial_mask):
-            return initial_mask
+        # No frames are censored, then return full set
+        if not np.any(np.logical_not(initial_mask)):
+            return np.where(initial_mask)[0], np.array([], dtype=np.int)
 
         for i in np.arange(0, len(initial_mask)):
 
@@ -97,7 +100,8 @@ class BaseCensor(object):
                 start_ind = False
 
         mask_frames = initial_mask & np.logical_not(under_min_contiguous)
-        return np.where(mask_frames), np.where(np.logical_not(mask_frames))
+        return (np.where(mask_frames)[0],
+                np.where(np.logical_not(mask_frames))[0])
 
     def _clean(self,
                img: Nifti1Image,
@@ -176,7 +180,7 @@ class PowersClean(BaseCensor):
             standardize=self._standardize,
             confounds=self._generate_design(confounds)[mask_frames, :])
 
-        if not censor_frames:
+        if censor_frames.any():
             clean_img = _image_to_signals(clean_img)
 
             t = np.arange(0, img.shape[-1]) * t_r
@@ -226,7 +230,7 @@ class LindquistPowersClean(BaseCensor):
         '''
 
         # Interpolate data indices
-        if censor_frames:
+        if censor_frames.any():
             t = fs * mask_frames
             s = fs * censor_frames
             data[:,
@@ -248,13 +252,11 @@ class LindquistPowersClean(BaseCensor):
     def _transform(self, img: Nifti1Image, confounds: pd.DataFrame,
                    fd_thres: float):
 
-        # Get image t_r
         t_r = img.header['pixdim'][4]
-        confounds = self._generate_design(confounds).T
-
-        # Apply pre-regression censoring + filtering
         mask_frames, censor_frames = self._get_censor_mask(
             confounds['framewise_displacement'], fd_thres)
+
+        confounds = self._generate_design(confounds).T
         c_confounds = self._censor_and_filter(confounds, mask_frames,
                                               censor_frames, 1 / t_r)
         c_data = self._censor_and_filter(_image_to_signals(img), mask_frames,
