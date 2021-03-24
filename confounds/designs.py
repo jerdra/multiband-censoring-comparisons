@@ -73,7 +73,7 @@ def dct_bandpass(N: int, T: float, low_pass: Optional[float],
     dct = dct_basis(N) * (np.sqrt(2 / N))
 
     # Remove lowest frequency component
-    ft = n / (2 * N * T)[1:]
+    ft = (n / (2 * N * T))[1:]
 
     pass_band = np.where((ft < low_pass) & (ft > high_pass))[0]
     return dct[:, pass_band]
@@ -102,4 +102,4 @@ def fourier_bandpass(N: int, T: float, low_pass: Optional[float],
         # TODO: Add logger error
         raise
 
-    return shifted_fourier(t, w[passband])
+    return shifted_fourier(t[:, np.newaxis], w[passband])

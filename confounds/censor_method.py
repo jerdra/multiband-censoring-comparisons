@@ -5,10 +5,6 @@ Provide various strategies to perform cleaning operations
 from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
-if TYPE_CHECKING:
-    from nibabel import Nifti1Image
-    import numpy.typing as npt
-
 import numpy as np
 import pandas as pd
 import nilearn.image as nimg
@@ -19,12 +15,16 @@ import logging
 from .spectral_interpolation import lombscargle_interpolate
 from .designs import dct_bandpass, fourier_bandpass
 
+if TYPE_CHECKING:
+    from nibabel import Nifti1Image
+    import numpy.typing as npt
+
 logging.basicConfig(format='%(asctime)s %(message)s',
                     datefmt='%m/%d/%Y %I:%M:%S %p',
                     level=logging.INFO)
 
 
-class BaseCensor(object):
+class BaseClean(object):
     '''
     Performs censoring after nilearn.signal.clean step
     '''
@@ -154,7 +154,7 @@ class BaseCensor(object):
         return _get_vol_index(clean_img, mask_frames)
 
 
-class PowersClean(BaseCensor):
+class PowersClean(BaseClean):
     '''
     Implements full Powers 2014 optimized method
     for scrubbing using lombscargle method
@@ -208,7 +208,7 @@ class PowersClean(BaseCensor):
         return _get_vol_index(out_img, mask_frames)
 
 
-class LindquistPowersClean(BaseCensor):
+class LindquistPowersClean(BaseClean):
     '''
     Implements full Powers 2014 optimized method
     modified to satisfy Lindquist's critique
@@ -273,9 +273,9 @@ class LindquistPowersClean(BaseCensor):
         return nimg.new_img_like(img, clean_data, copy_header=True)
 
 
-class FiltRegressorCensor(BaseCensor):
+class FiltRegressorMixin():
     '''
-    Specialization of BaseCensor to incorporate filtering
+    Specialization of BaseClean to incorporate filtering
     into the regression step in lieu of nilearn's
     temporally dependent butterworth filter.
     '''
@@ -302,7 +302,7 @@ class FiltRegressorCensor(BaseCensor):
         return clean_img
 
 
-class DCTBasisCensor(FiltRegressorCensor):
+class DCTBasisClean(FiltRegressorMixin, BaseClean):
     '''
     Performs simultaneous regression and filtering
     using DCT v1.1.
@@ -322,7 +322,7 @@ class DCTBasisCensor(FiltRegressorCensor):
         return np.c_[X, D]
 
 
-class FourierBasisCensor(FiltRegressorCensor):
+class FourierBasisClean(FiltRegressorMixin, BaseClean):
     '''
     Performs simultaneous regression and filtering
     using Fourier basis
