@@ -1,0 +1,8 @@
+{
+  "--detrend": true,
+  "--standardize": true,
+  "--cf-cols": "trans_x,trans_y,trans_z,rot_x,rot_y,rot_z,csf,white_matter,global_signal",
+  "--cf-td-cols": "trans_x,trans_y,trans_z,rot_x,rot_y,rot_z,csf,white_matter,global_signal",
+  "--low-pass": 0.08,
+  "--high-pass": 0.009
+ }
