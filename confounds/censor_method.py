@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import numpy as np
 import pandas as pd
+
+from nibabel import Nifti1Image
 import nilearn.image as nimg
 import nilearn.signal as nsig
 
@@ -16,7 +18,6 @@ from .spectral_interpolation import lombscargle_interpolate
 from .designs import dct_bandpass, fourier_bandpass
 
 if TYPE_CHECKING:
-    from nibabel import Nifti1Image
     import numpy.typing as npt
 
 logging.basicConfig(format="%(asctime)s %(message)s",
@@ -214,17 +215,22 @@ class LindquistPowersClean(BaseClean):
     """
     def _censor_and_filter(
             self,
-            data: npt.ArrayLike,
+            data: Union[npt.ArrayLike, Nifti1Image],
             mask_frames: npt.ArrayLike,
             censor_frames: npt.ArrayLike,
             t_r: float,
-    ) -> npt.ArrayLike:
+    ) -> Union[npt.ArrayLike, Nifti1Image]:
         """
         Censor data, perform lombscargle interpolation,
         filter
         """
 
-        return nsig.clean(_interpolate_frames(data, mask_frames, censor_frames,
+        if isinstance(data, Nifti1Image):
+            clean_func = nimg.clean_img
+        else:
+            clean_func = nsig.clean
+
+        return clean_func(_interpolate_frames(data, mask_frames, censor_frames,
                                               t_r),
                           t_r=t_r,
                           low_pass=self._low_pass,
@@ -240,20 +246,18 @@ class LindquistPowersClean(BaseClean):
             confounds["framewise_displacement"], fd_thres)
 
         # Step: 1, 2, 3
-        c_data = self._censor_and_filter(img, mask_frames, censor_frames, t_r)
+        c_img = self._censor_and_filter(img, mask_frames, censor_frames, t_r)
         confounds = self._generate_design(confounds).T
         c_confounds = self._censor_and_filter(confounds, mask_frames,
                                               censor_frames, t_r)
 
         # Step: 4, 5
-        clean_data = nsig.clean(
-            c_data[:, mask_frames].T,
+        return nimg.clean_img(
+            _get_vol_index(c_img, mask_frames),
             confounds=c_confounds[:, mask_frames].T,
             detrend=self._detrend,
             standardize=self._standardize,
         )
-        clean_data = clean_data.T.reshape((*img.shape[:-1], len(mask_frames)))
-        return nimg.new_img_like(img, clean_data, copy_header=True)
 
 
 class FiltRegressorMixin:
@@ -401,18 +405,24 @@ def _interpolate_frames(data: Union[Nifti1Image,
     else:
         sgls = data
 
-    t = np.arange(0, data.shape[-1]) * t_r
+    t_num_samples = len(censor) + len(mask)
+
+    # Lombscargle interpolate expects already censored data
+    if sgls.shape[1] == t_num_samples:
+        sgls = sgls[:, mask]
+
+    t = np.arange(0, t_num_samples) * t_r
     interp_vals = lombscargle_interpolate(t=t[mask],
                                           x=sgls,
                                           s=t[censor],
                                           fs=1 / t_r)
 
-    res = sgls
+    res = np.empty((sgls.shape[0], t_num_samples), dtype=sgls.dtype)
+    res[:, mask] = sgls
     res[:, censor] = interp_vals
+    res = res.reshape((*data.shape[:-1], t_num_samples))
 
     if is_nifti:
-        return nimg.new_img_like(data,
-                                 res.reshape(data.shape),
-                                 copy_header=True)
-    else:
-        return res.reshape(data.shape)
+        return nimg.new_img_like(data, res, copy_header=True)
+
+    return res
