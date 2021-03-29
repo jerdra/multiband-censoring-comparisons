@@ -177,7 +177,7 @@ class PowersClean(BaseClean):
     5. Re-censor data
     """
     def _transform(self, img: Nifti1Image, confounds: pd.DataFrame,
-                   fd_thres: float):
+                   fd_thres: float) -> Nifti1Image:
 
         t_r = img.header["pixdim"][4]
         mask_frames, censor_frames = self._get_censor_mask(
@@ -239,7 +239,7 @@ class LindquistPowersClean(BaseClean):
                           standardize=False)
 
     def _transform(self, img: Nifti1Image, confounds: pd.DataFrame,
-                   fd_thres: float):
+                   fd_thres: float) -> Nifti1Image:
 
         t_r = img.header["pixdim"][4]
         mask_frames, censor_frames = self._get_censor_mask(
@@ -380,9 +380,9 @@ def _clear_steady_state(img: Nifti1Image,
     return (new_img, new_conf)
 
 
-def _interpolate_frames(data: Union[Nifti1Image,
-                                    npt.ArrayLike], mask: npt.ArrayLike,
-                        censor: npt.ArrayLike, t_r: float):
+def _interpolate_frames(data: Union[Nifti1Image, npt.ArrayLike],
+                        mask: npt.ArrayLike, censor: npt.ArrayLike,
+                        t_r: float) -> Union[Nifti1Image, npt.ArrayLike]:
     '''
     Interpolates `censor` using `img` data in `mask`
     using lombscargle non-uniform spectral interpolation
