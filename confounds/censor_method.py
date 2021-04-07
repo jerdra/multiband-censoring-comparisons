@@ -107,10 +107,10 @@ class BaseClean(object):
                 np.where(np.logical_not(mask_frames))[0])
 
     def _clean(
-            self,
-            img: Nifti1Image,
-            confounds: npt.ArrayLike,
-            clean_settings: Optional[dict] = None,
+        self,
+        img: Nifti1Image,
+        confounds: npt.ArrayLike,
+        clean_settings: Optional[dict] = None,
     ) -> Nifti1Image:
         """
         Perform standard Nilearn signals.clean
@@ -134,11 +134,11 @@ class BaseClean(object):
                               **clean_settings)
 
     def transform(
-            self,
-            img: Nifti1Image,
-            confounds: pd.DataFrame,
-            drop_trs: Optional[int] = None,
-            fd_thres: Optional[float] = 0.5,
+        self,
+        img: Nifti1Image,
+        confounds: pd.DataFrame,
+        drop_trs: Optional[int] = None,
+        fd_thres: Optional[float] = 0.5,
     ) -> Nifti1Image:
 
         img, confounds = _clear_steady_state(img, confounds, drop_trs)
@@ -214,11 +214,11 @@ class LindquistPowersClean(BaseClean):
     5. Perform cleaning
     """
     def _censor_and_filter(
-            self,
-            data: Union[npt.ArrayLike, Nifti1Image],
-            mask_frames: npt.ArrayLike,
-            censor_frames: npt.ArrayLike,
-            t_r: float,
+        self,
+        data: Union[npt.ArrayLike, Nifti1Image],
+        mask_frames: npt.ArrayLike,
+        censor_frames: npt.ArrayLike,
+        t_r: float,
     ) -> Union[npt.ArrayLike, Nifti1Image]:
         """
         Censor data, perform lombscargle interpolation,
@@ -367,9 +367,9 @@ def _clear_steady_state(img: Nifti1Image,
             steady_ind = np.where(steady_df < 0)[0]
             drop_trs = int(steady_ind[0])
         else:
-            logging.error("drop_trs not supplied and steady_state volumes not"
-                          " found in confounds file!")
-            raise ValueError
+            raise ValueError(
+                "drop_trs not supplied and steady_state volumes not"
+                " found in confounds dataframe!")
 
     # Construct new image object
     new_conf = confounds.loc[drop_trs:, :]
