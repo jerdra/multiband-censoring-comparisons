@@ -414,12 +414,11 @@ def _interpolate_frames(data: Union[Nifti1Image, npt.ArrayLike],
     t = np.arange(0, t_num_samples) * t_r
     interp_vals = lombscargle_interpolate(t=t[mask],
                                           x=sgls,
-                                          s=t[censor],
-                                          fs=1 / t_r)
+                                          s=t)
 
     res = np.empty((sgls.shape[0], t_num_samples), dtype=sgls.dtype)
     res[:, mask] = sgls
-    res[:, censor] = interp_vals
+    res[:, censor] = interp_vals[:, censor]
     res = res.reshape((*data.shape[:-1], t_num_samples))
 
     if is_nifti:

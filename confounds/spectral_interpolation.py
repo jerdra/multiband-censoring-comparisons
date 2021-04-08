@@ -144,7 +144,6 @@ def Ow(t: npt.ArrayLike, w: npt.ArrayLike) -> npt.ArrayLike:
 def lombscargle_interpolate(t: npt.ArrayLike,
                             x: npt.ArrayLike,
                             s: npt.ArrayLike,
-                            fs: float,
                             chunk_size: Optional[int] = 100) -> npt.ArrayLike:
     '''
     Perform non-uniform spectral interpolation of a time-series t
@@ -156,7 +155,6 @@ def lombscargle_interpolate(t: npt.ArrayLike,
         t: Non-uniform sampling times [T x 1]
         x: Observed values x_p(t) [P x T]
         s: Target time-series to sample to [S x 1]
-        fs: Sampling frequency
         chunk_size: Perform interpolation in chunks if X is 2 dimensional
             to limit memory consumption
 
@@ -175,9 +173,7 @@ def lombscargle_interpolate(t: npt.ArrayLike,
     o = Ow(t, w)
     cterm = CT(t, w, o)
     sterm = ST(t, w, o)
-    X = make_design(s, w)
-
-    coefs = np.empty((chunk_size, w.shape[0] * 2))
+    X = make_design(s, w, o)
 
     dc = (cterm**2).sum(axis=0)
     ds = (sterm**2).sum(axis=0)
@@ -203,4 +199,4 @@ def lombscargle_interpolate(t: npt.ArrayLike,
 
         x_i[i, :] = coefs @ X.T
 
-    return x_i
+    return normalize_variance_on(x_i, x)
