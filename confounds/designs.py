@@ -72,10 +72,11 @@ def dct_bandpass(N: int, T: float, low_pass: Optional[float],
     n = np.arange(0, N)
     dct = dct_basis(N) * (np.sqrt(2 / N))
 
-    # Remove lowest frequency component
+    # Remove bias term
+    dct = dct[:, 1:]
     ft = (n / (2 * N * T))[1:]
 
-    pass_band = np.where((ft < low_pass) & (ft > high_pass))[0]
+    pass_band = np.where((ft < high_pass) | (ft > low_pass))[0]
     return dct[:, pass_band]
 
 
@@ -97,7 +98,7 @@ def fourier_bandpass(N: int, T: float, low_pass: Optional[float],
     w = get_sampling_w(t)
 
     try:
-        passband = np.where((w < low_pass) & (w > high_pass))
+        passband = np.where((w < high_pass) | (w > low_pass))
     except IndexError:
         # TODO: Add logger error
         raise
