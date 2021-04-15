@@ -353,23 +353,31 @@ def _image_to_signals(img: Nifti1Image) -> npt.ArrayLike:
     return img.get_fdata(caching="unchanged").reshape((nvox, -1))
 
 
-def _clear_steady_state(img: Nifti1Image,
-                        confounds: pd.DataFrame,
-                        drop_trs: Optional[int] = None):
+def _clear_steady_state(
+        img: Nifti1Image,
+        confounds: pd.DataFrame,
+        drop_trs: Optional[int] = None) -> (Nifti1Image, pd.DataFrame):
     """
     Remove steady state volumes
+
+    Arguments:
+        img:            Input image
+        confounds:      Input confounds dataframe
+        drop_trs:       Number of trs to drop
+
+    If no drop_trs are specified and steady_state volumes are not found
+    only the first TR will be dropped to allow for derivatives
     """
 
-    if not drop_trs:
+    if drop_trs is None:
         steady_cols = [c for c in confounds.columns if "steady" in c]
         if steady_cols:
             steady_df = confounds[steady_cols].sum(axis=1).diff()
             steady_ind = np.where(steady_df < 0)[0]
             drop_trs = int(steady_ind[0])
         else:
-            raise ValueError(
-                "drop_trs not supplied and steady_state volumes not"
-                " found in confounds dataframe!")
+            logging.warning("No steady state TRs found for this image!")
+            drop_trs = 1
 
     # Construct new image object
     new_conf = confounds.loc[drop_trs:, :]
@@ -412,9 +420,7 @@ def _interpolate_frames(data: Union[Nifti1Image, npt.ArrayLike],
         sgls = sgls[:, mask]
 
     t = np.arange(0, t_num_samples) * t_r
-    interp_vals = lombscargle_interpolate(t=t[mask],
-                                          x=sgls,
-                                          s=t)
+    interp_vals = lombscargle_interpolate(t=t[mask], x=sgls, s=t)
 
     res = np.empty((sgls.shape[0], t_num_samples), dtype=sgls.dtype)
     res[:, mask] = sgls

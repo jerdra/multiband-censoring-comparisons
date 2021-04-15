@@ -1,0 +1,22 @@
+Auto-censoring preprocessing pipeline
+=======================================
+
+Given an fMRIPrep directory, perform censoring on all available fMRI files using
+a suite of censoring algorithms.
+
+Arguments:
+
+--fmriprep		Input fMRIPrep directory
+--outputdir		Base output directory for pipeline
+
+Command-line Options:
+
+--sessions		File containing "sub-SUBJECT/ses-SESSION" per line
+			specifying subject/session combinations to run
+--rewrite		Re-run if outputs are already available for particular
+			subject/session combination
+
+Configuration Options:
+
+params.bids_entities	An {entity: regex_value} mapping to narrow down
+			specific fmri files to use
