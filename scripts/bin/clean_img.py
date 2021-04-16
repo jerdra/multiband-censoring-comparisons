@@ -30,14 +30,17 @@ def simplify_ciftify_cols(config):
     all_cols = config['--cf-cols'].split(',')
 
     if "--cf-sq-cols" in config.keys():
-        all_cols += [f"{f}_power2" for f in config['--cf-sq-cols']]
+        all_cols += [f"{f}_power2" for f in config['--cf-sq-cols'].split(',')]
 
     if "--cf-td-cols" in config.keys():
-        all_cols += [f"{f}_deriative1" for f in config['--cf-td-cols']]
+        all_cols += [
+            f"{f}_derivative1" for f in config['--cf-td-cols'].split(',')
+        ]
 
     if "--cf-sqtd-cols" in config.keys():
         all_cols += [
-            f"{f}_derivative1_powers2" for f in config['--cf-sqtd-cols']
+            f"{f}_derivative1_powers2"
+            for f in config['--cf-sqtd-cols'].split(',')
         ]
 
     new_config['--cf-cols'] = ','.join(all_cols)
@@ -50,9 +53,7 @@ def main():
     p = argparse.ArgumentParser(
         description="Perform basic confound cleaning followed"
         " by Powers (2014) style scrubbing")
-    p.add_argument("image",
-                   help="Input image file to be cleaned",
-                   type=str)
+    p.add_argument("image", help="Input image file to be cleaned", type=str)
     p.add_argument("confounds",
                    help="Input confound file to be cleaned",
                    type=str)
@@ -60,13 +61,10 @@ def main():
                    help="Cleaning configuration file"
                    " (see: Ciftify clean config)",
                    type=str)
-    p.add_argument("output",
-                   help="Output file",
-                   type=str)
+    p.add_argument("output", help="Output file", type=str)
     p.add_argument("--method",
                    help="Censoring method to use",
                    choices=list(OBJECT_MAPPING.keys()))
-    p.add_argument("output", help="Name of output image", type=str)
 
     args = p.parse_args()
     with open(args.config, 'r') as f:
@@ -75,7 +73,7 @@ def main():
 
     # Retrieve the censor algorithm
     censor = OBJECT_MAPPING[args.method](config)
-    result = censor.transform(nimg.load_img(args.dtseries),
+    result = censor.transform(nimg.load_img(args.image),
                               pd.read_csv(args.confounds, sep="\t"))
     nib.save(result, args.output)
 

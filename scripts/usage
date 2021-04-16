@@ -8,6 +8,7 @@ Arguments:
 
 --fmriprep		Input fMRIPrep directory
 --outputdir		Base output directory for pipeline
+--parcellation		Parcellation to use for connectivity computation
 
 Command-line Options:
 
