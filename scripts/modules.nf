@@ -49,7 +49,7 @@ process deriveConnectivity{
     masker = NiftiLabelsMasker(labels_img=parcel, smoothing_fwhm=smoothing)
     res = masker.fit_transform(img)
 
-    connecome_measure = ConnectivityMeasure(kind="correlation")
+    connectome_measure = ConnectivityMeasure(kind="correlation")
     res = connectome_measure.fit_transform([res])[0]
 
     np.save("!{entities}_desc-!{method}_connectivity.npy", res)
