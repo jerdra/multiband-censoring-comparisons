@@ -2,8 +2,10 @@
 Perform basic confound cleaning followed by Powers (2014) style scrubbing
 '''
 
+import sys
 import argparse
 import json
+import logging
 
 import confounds.censor_method as censor_method
 import pandas as pd
@@ -17,6 +19,14 @@ OBJECT_MAPPING = {
     "dct": censor_method.DCTBasisClean,
     "fourier": censor_method.FourierBasisClean
 }
+
+
+def exception_hook(exc_type, exc_value, exc_traceback):
+    logging.error("Uncaught Exception",
+                  exc_info=(exc_type, exc_value, exc_traceback))
+
+
+sys.excepthook = exception_hook
 
 
 def simplify_ciftify_cols(config):
@@ -48,6 +58,14 @@ def simplify_ciftify_cols(config):
     return new_config
 
 
+def configure_logging(logfile):
+    '''
+    Set up logging
+    '''
+    logging.basicConfig(filename=logfile, level=logging.INFO, force=True)
+    logging.info('Configured logging')
+
+
 def main():
 
     p = argparse.ArgumentParser(
@@ -65,8 +83,12 @@ def main():
     p.add_argument("--method",
                    help="Censoring method to use",
                    choices=list(OBJECT_MAPPING.keys()))
+    p.add_argument("--logfile", help="Output logfile", type=str)
 
     args = p.parse_args()
+
+    if args.logfile:
+        configure_logging(args.logfile)
     with open(args.config, 'r') as f:
         config = json.load(f)
     config = simplify_ciftify_cols(config)

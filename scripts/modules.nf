@@ -16,7 +16,8 @@ process scrubImage{
     '''
     python !{workflow.projectDir}/bin/clean_img.py !{img} !{confounds} \
         !{params.cleanconf} !{entities}_desc-!{method}_cleaned.nii.gz \
-        --method !{method}
+        --method !{method} \
+        !{(params.logDir) ? "--logfile $params.logDir/$entities" + ".log" : ""} 
     '''
 }
 
