@@ -92,7 +92,7 @@ def main():
                    help="Cleaning configuration file"
                    " (see: Ciftify clean config)",
                    type=str)
-    p.add_argument("output", help="Output file", type=str)
+    p.add_argument("output", help="Output file basename", type=str)
     p.add_argument("--method",
                    help="Censoring method to use",
                    choices=list(OBJECT_MAPPING.keys()))
@@ -129,11 +129,11 @@ def main():
         cifti2_axes.SeriesAxis(start=series_ax.start,
                                step=series_ax.step,
                                unit=series_ax.unit,
-                               size=result_data.shape[-1]),
+                               size=result_data.shape[0]),
         surf_header.get_axis(1)
     ])
     cifti = Cifti2Image(dataobj=result_data, header=new_header)
-    nib.save(args.output, cifti)
+    nib.save(cifti, args.output)
 
 
 if __name__ == '__main__':
