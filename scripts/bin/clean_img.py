@@ -7,10 +7,13 @@ import argparse
 import json
 import logging
 
+import numpy as np
+
 import confounds.censor_method as censor_method
 import pandas as pd
 import nilearn.image as nimg
 import nibabel as nib
+from nibabel.cifti2 import cifti2_axes, Cifti2Image
 
 OBJECT_MAPPING = {
     "base": censor_method.BaseClean,
@@ -58,6 +61,16 @@ def simplify_ciftify_cols(config):
     return new_config
 
 
+def convert_to_nifti(cifti):
+
+    # Shape is [T x V]
+    data = np.asanyarray(cifti.dataobj).T
+    V, T = data.shape
+
+    # We'll convert it into a NIFTI container [V x 1 x 1 x T]
+    return nib.Nifti1Image(data[:, np.newaxis, np.newaxis, :], np.eye(4))
+
+
 def configure_logging(logfile):
     '''
     Set up logging
@@ -93,11 +106,34 @@ def main():
         config = json.load(f)
     config = simplify_ciftify_cols(config)
 
+    img = nimg.load_img(args.image)
+
+    # Needs special handling
+    surf_header = None
+    if isinstance(img, nib.cifti2.Cifti2Image):
+        surf_header = img.header
+        img = convert_to_nifti(img)
+
     # Retrieve the censor algorithm
     censor = OBJECT_MAPPING[args.method](config)
-    result = censor.transform(nimg.load_img(args.image),
-                              pd.read_csv(args.confounds, sep="\t"))
-    nib.save(result, args.output)
+    result = censor.transform(img, pd.read_csv(args.confounds, sep="\t"))
+
+    if surf_header is None:
+        nib.save(result, args.output)
+        return
+
+    # Re-construct surface
+    series_ax = surf_header.get_axis(0)
+    result_data = np.squeeze(result.get_fdata()).T
+    new_header = cifti2_axes.to_header([
+        cifti2_axes.SeriesAxis(start=series_ax.start,
+                               step=series_ax.step,
+                               unit=series_ax.unit,
+                               size=result_data.shape[-1]),
+        surf_header.get_axis(1)
+    ])
+    cifti = Cifti2Image(dataobj=result_data, header=new_header)
+    nib.save(args.output, cifti)
 
 
 if __name__ == '__main__':
