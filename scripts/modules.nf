@@ -36,10 +36,18 @@ process deriveConnectivity{
     '''
     #!/usr/bin/env python
 
+    import sys
     import numpy as np
     import nilearn.image as nimg
     from nilearn.input_data import NiftiLabelsMasker
     from nilearn.connectome import ConnectivityMeasure
+    import logging
+    logging.basicConfig(filename="!{params.logDir}/!{entities}_connectivity.log")
+
+    def exception_hook(exc_type, exc_value, exc_traceback):
+        logging.error("Uncaught Exception",
+                      exc_info=(exc_type, exc_value, exc_traceback))
+    sys.excepthook = exception_hook
 
     img = nimg.load_img("!{img}")
     parcel = nimg.load_img("!{parcel}")
