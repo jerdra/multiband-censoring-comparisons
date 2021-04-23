@@ -16,7 +16,18 @@ def exception_hook(exc_type, exc_value, exc_traceback):
 sys.excepthook = exception_hook
 
 
-def volume_connectivity(nifti, parcels):
+def parse_label_table(label_table):
+    '''
+    Pull row information from label table
+    '''
+    label_df = pd.read_csv(label_table,
+                           delimiter='\t',
+                           usecols=[1],
+                           names=['label'])
+    return list(label_df['label'])
+
+
+def volume_connectivity(nifti, parcels, label_table=None):
     '''
     Compute volume-based connectivity and return a dataframe
     containing PxP correlation matrix
@@ -31,7 +42,15 @@ def volume_connectivity(nifti, parcels):
 
     connectome_measure = ConnectivityMeasure(kind='correlation')
     res = connectome_measure.fit_transform([res])[0]
-    return pd.DataFrame(res)
+
+    if label_table:
+        labels = parse_label_table(label_table)
+        df = pd.DataFrame(res, columns=labels)
+        df['row'] = labels
+        df = df[['row'] + labels]
+    else:
+        df = pd.DataFrame(res)
+    return df
 
 
 def surface_connectivity(dtseries, dlabel):
@@ -111,6 +130,9 @@ def main():
                         "nifti 3D volume with ROI labels")
     parser.add_argument('output', type=str, help="Output CSV file")
     parser.add_argument('--logfile', type=str, help="Output logfile")
+    parser.add_argument('--vol-table',
+                        type=str,
+                        help="Volume table for parcellation")
     args = parser.parse_args()
 
     if args.logfile:
@@ -129,6 +151,6 @@ def main():
         df = surface_connectivity(img, parcels)
     else:
         logging.info("Running volume connectivity...")
-        df = volume_connectivity(img, parcels)
+        df = volume_connectivity(img, parcels, args.vol_table)
 
     df.to_csv(args.output, delimiter="\t", index=False)

@@ -27,41 +27,29 @@ process deriveConnectivity{
     publishDir "$params.outputdir"
 
     input:
-    tuple val(entities), val(method), path(img), path(parcel)
+    tuple val(entities), val(method), path(img), path(parcel), \
+    path(output)
 
     output:
     tuple val(entities), path("${entities}_desc-${method}_connectivity.npy"),\
     emit: connectivity
 
-    shell:
+    // Use only if vol_table is available
+    script:
+
+    if img.toString().contains("dtseries.nii"){
+        let vol_table = "";
+    } else {
+        let vol_table = params.vol_table ?: ""
+    }
+
+
     '''
-    #!/usr/bin/env python
+    python !{workflow.projectDir}/bin/compute_connectivity.py \
+            !{img} !{parcel} !{output} \
+            !{(params.logDir) ? "--logfile $params.logDir/$entities" + "_connectivity.log" : ""} \
+            --vol-table !{params.vol_table}
 
-    import sys
-    import numpy as np
-    import nilearn.image as nimg
-    from nilearn.input_data import NiftiLabelsMasker
-    from nilearn.connectome import ConnectivityMeasure
-    import logging
-    logging.basicConfig(filename="!{params.logDir}/!{entities}_connectivity.log")
-
-    def exception_hook(exc_type, exc_value, exc_traceback):
-        logging.error("Uncaught Exception",
-                      exc_info=(exc_type, exc_value, exc_traceback))
-    sys.excepthook = exception_hook
-
-    img = nimg.load_img("!{img}")
-    parcel = nimg.load_img("!{parcel}")
-    parcel = nimg.resample_to_img(parcel, img, interpolation="nearest")
-    smoothing = int("!{params.smoothing_fwhm}")
-
-    masker = NiftiLabelsMasker(labels_img=parcel, smoothing_fwhm=smoothing)
-    res = masker.fit_transform(img)
-
-    connectome_measure = ConnectivityMeasure(kind="correlation")
-    res = connectome_measure.fit_transform([res])[0]
-
-    np.save("!{entities}_desc-!{method}_connectivity.npy", res)
     '''
 }
 
@@ -83,4 +71,19 @@ workflow surfaceCensor{
 }
 
 workflow volumeCensor{
+
+    take:
+        data
+        methods
+        parcellation
+        label_table
+    
+    main:
+        i_scrub = data.combine(methods)
+            .map{e,f,c,m -> [
+                e,f,c,m,
+                "${e}_desc-${m}_cleaned.dtseriers.nii"
+            ]}
+        scrubImage(i_scrub)
+
 }

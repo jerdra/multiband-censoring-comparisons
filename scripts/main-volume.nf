@@ -30,8 +30,23 @@ if (params.ciftify) {
     log.info("Ciftify directory: ${params.ciftify}") 
 }
 log.info("Output directory: $params.outputdir")
-base_entities = /.+(?=_desc)/
 
+// Check if volume table provided with parcellation
+if (params.vol_parcels){
+    log.info("Volume Parcellation: ${params.vol_parcels}")
+    if (!params.vol_table){
+        log.info("Volume parcels provided, but not table!")
+        log.info("Note that the dataframes outputted will not be labelled" +
+        " with ROI names!")
+    } else {
+        log.info("Volume Table: ${params.vol_table}")
+    }
+}
+
+if (params.surf_parcels) log.info("Surface Parcellation: ${params.surf_parcels}")
+
+
+base_entities = /.+(?=_desc)/
 // Retrieve all available fMRI files, store with base entities
 fmriprep_scans = Channel.empty()
 ciftify_scans = Channel.empty()
@@ -100,6 +115,13 @@ workflow{
     surfaceCensor(
         input_channel.surfaces,
         params.METHODS,
-        params.parcellation
+        params.surf_parcels
+    )
+
+    volumeCensor(
+        input_channel.volumes,
+        params.METHODS,
+        params.vol_parcels,
+        params.vol_table
     )
 }

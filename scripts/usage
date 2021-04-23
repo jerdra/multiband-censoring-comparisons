@@ -8,10 +8,13 @@ Arguments:
 
 --fmriprep		Input fMRIPrep directory
 --outputdir		Base output directory for pipeline
---parcellation		Parcellation to use for connectivity computation
 
 Command-line Options:
 
+--vol_parcels		Parcellation to use for connectivity computation
+--vol_table		Volume parcellation label table if using
+--surf_parcels		Surface parcellation to use for connectivity computation
+--ciftify		Input Ciftify directory if using surface-based
 --sessions		File containing "sub-SUBJECT/ses-SESSION" per line
 			specifying subject/session combinations to run
 --rewrite		Re-run if outputs are already available for particular
