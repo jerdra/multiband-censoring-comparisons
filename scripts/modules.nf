@@ -31,7 +31,7 @@ process deriveConnectivity{
     path(output)
 
     output:
-    tuple val(entities), path("${entities}_desc-${method}_connectivity.npy"),\
+    tuple val(entities), val(method), path(output),\
     emit: connectivity
 
     // Use only if vol_table is available
@@ -40,7 +40,7 @@ process deriveConnectivity{
     if img.toString().contains("dtseries.nii"){
         let vol_table = "";
     } else {
-        let vol_table = params.vol_table ?: ""
+        let vol_table = params.vol_table ? "--vol-table ${params.vol_table}" : ""
     }
 
 
@@ -48,7 +48,7 @@ process deriveConnectivity{
     python !{workflow.projectDir}/bin/compute_connectivity.py \
             !{img} !{parcel} !{output} \
             !{(params.logDir) ? "--logfile $params.logDir/$entities" + "_connectivity.log" : ""} \
-            --vol-table !{params.vol_table}
+            !{vol_table}
 
     '''
 }
@@ -68,6 +68,16 @@ workflow surfaceCensor{
                         "${e}_desc-${m}_cleaned.dtseries.nii"
                     ]}
         scrubImage(i_scrub)
+
+        if (parcellation) {
+            i_connectivity = scrubImage.out.clean_img
+                                .map{e,m,c -> [
+                                    e,m,c,
+                                    params.surf_parcels,
+                                    "${e}_desc-${m}_connectivity.tsv"
+                                ]}
+            deriveConnectivity(i_connectivity)
+        }
 }
 
 workflow volumeCensor{
@@ -85,5 +95,15 @@ workflow volumeCensor{
                 "${e}_desc-${m}_cleaned.dtseriers.nii"
             ]}
         scrubImage(i_scrub)
+
+        if (parcellation) {
+            i_connectivity = scrubImage.out.clean_img
+                                .map{e,m,c -> [
+                                    e,m,c,
+                                    params.vol_parcels,
+                                    "${e}_desc-${m}_connectivity.tsv"
+                                ]}
+            deriveConnectivity(i_connectivity)
+        }
 
 }
