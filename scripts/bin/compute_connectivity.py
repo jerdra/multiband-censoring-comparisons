@@ -117,7 +117,7 @@ def configure_logging(logfile):
 def main():
 
     parser = argparse.ArgumentParser(
-        desc="Compute correlation matrix given "
+        description="Compute correlation matrix given "
         "an input time-series file and parcellation")
 
     parser.add_argument('func',
@@ -153,4 +153,8 @@ def main():
         logging.info("Running volume connectivity...")
         df = volume_connectivity(img, parcels, args.vol_table)
 
-    df.to_csv(args.output, delimiter="\t", index=False)
+    df.to_csv(args.output, sep="\t", index=False)
+
+
+if __name__ == '__main__':
+    main()
