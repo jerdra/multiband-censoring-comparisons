@@ -1,6 +1,7 @@
 nextflow.enable.dsl = 2
 
-include { volumeCensor; surfaceCensor } from "./modules.nf"
+include { volumeCensor; surfaceCensor } from "./preprocessing.nf"
+include { getMeanFD } from "./utils.nf"
 
 usage = file("${workflow.scriptFile.getParent()}/usage")
 printhelp = params.help
@@ -111,7 +112,6 @@ workflow{
 
     main:
 
-    // For now lets just use the surface-based parcellation
     surfaceCensor(
         input_channel.surfaces,
         params.METHODS,
@@ -124,4 +124,13 @@ workflow{
         params.vol_parcels,
         params.vol_table
     )
+
+    // Compute meanFD for each entity and save into CSV
+    confounds.map{e, c -> "${e},${getMeanFD(c)}"} 
+            .collectFile(
+                name: "$params.outputdir/meanFD.csv",
+                seed: "entity,mean_fd",
+                newLine: true
+            ).view { "Saved meanFD values into $it" }
+
 }

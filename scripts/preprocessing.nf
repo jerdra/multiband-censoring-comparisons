@@ -31,8 +31,7 @@ process deriveConnectivity{
     val(output)
 
     output:
-    tuple val(entities), val(method), path(output),\
-    emit: connectivity
+    tuple val(entities), val(method), path(output)
 
     script:
 
@@ -87,7 +86,7 @@ workflow volumeCensor{
         i_scrub = data.combine(methods)
             .map{e,f,c,m -> [
                 e,f,c,m,
-                "${e}_desc-${m}_cleaned.dtseriers.nii"
+                "${e}_desc-${m}_cleaned.dtseries.nii"
             ]}
         scrubImage(i_scrub)
 
@@ -100,5 +99,4 @@ workflow volumeCensor{
                                 ]}
             deriveConnectivity(i_connectivity)
         }
-
 }
