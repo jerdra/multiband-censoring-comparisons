@@ -27,30 +27,25 @@ process deriveConnectivity{
     publishDir "$params.outputdir"
 
     input:
-    tuple val(entities), val(method), path(img), path(parcel), \
-    path(output)
+    tuple val(entities), val(method), path(img), path(parcel),\
+    val(output)
 
     output:
     tuple val(entities), val(method), path(output),\
     emit: connectivity
 
-    // Use only if vol_table is available
     script:
 
-    if img.toString().contains("dtseries.nii"){
-        let vol_table = "";
-    } else {
-        let vol_table = params.vol_table ? "--vol-table ${params.vol_table}" : ""
-    }
+    def isDtseries = (output.toString().contains("dtseries.nii"))
+    def volTableArg = (!isDtseries && params.vol_table) ? "--vol-table ${params.vol_table}":""
 
+    """
+    python ${workflow.projectDir}/bin/compute_connectivity.py \
+            ${img} ${parcel} ${output} \
+            ${(params.logDir) ? "--logfile $params.logDir/$entities" + "_connectivity.log" : ""} \
+            ${volTableArg}
 
-    '''
-    python !{workflow.projectDir}/bin/compute_connectivity.py \
-            !{img} !{parcel} !{output} \
-            !{(params.logDir) ? "--logfile $params.logDir/$entities" + "_connectivity.log" : ""} \
-            !{vol_table}
-
-    '''
+    """
 }
 
 
