@@ -219,6 +219,7 @@ class LindquistPowersClean(BaseClean):
         mask_frames: npt.ArrayLike,
         censor_frames: npt.ArrayLike,
         t_r: float,
+        transpose_data: Optional[bool] = False
     ) -> Union[npt.ArrayLike, Nifti1Image]:
         """
         Censor data, perform lombscargle interpolation,
@@ -230,8 +231,14 @@ class LindquistPowersClean(BaseClean):
         else:
             clean_func = nsig.clean
 
-        return clean_func(_interpolate_frames(data, mask_frames, censor_frames,
-                                              t_r),
+        interpolated_img = _interpolate_frames(data, mask_frames,
+                                               censor_frames, t_r)
+
+        # TODO: Hacky work-around, implement cleaner solution
+        if transpose_data:
+            interpolated_img = interpolated_img.T
+
+        return clean_func(interpolated_img,
                           t_r=t_r,
                           low_pass=self._low_pass,
                           high_pass=self._high_pass,
@@ -248,13 +255,16 @@ class LindquistPowersClean(BaseClean):
         # Step: 1, 2, 3
         c_img = self._censor_and_filter(img, mask_frames, censor_frames, t_r)
         confounds = self._generate_design(confounds).T
-        c_confounds = self._censor_and_filter(confounds, mask_frames,
-                                              censor_frames, t_r)
+        c_confounds = self._censor_and_filter(confounds,
+                                              mask_frames,
+                                              censor_frames,
+                                              t_r,
+                                              transpose_data=True)
 
         # Step: 4, 5
         return nimg.clean_img(
             _get_vol_index(c_img, mask_frames),
-            confounds=c_confounds[:, mask_frames].T,
+            confounds=c_confounds[mask_frames, :],
             detrend=self._detrend,
             standardize=self._standardize,
         )

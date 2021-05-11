@@ -18,7 +18,7 @@ process scrubImage{
     python !{workflow.projectDir}/bin/clean_img.py !{img} !{confounds} \
         !{params.cleanconf} !{output} \
         --method !{method} \
-        !{(params.logDir) ? "--logfile $params.logDir/$entities" + ".log" : ""} 
+        !{(params.logDir) ? "--logfile $params.logDir/$entities" + "_$method" + ".log" : ""} 
     '''
 }
 
@@ -41,7 +41,7 @@ process deriveConnectivity{
     """
     python ${workflow.projectDir}/bin/compute_connectivity.py \
             ${img} ${parcel} ${output} \
-            ${(params.logDir) ? "--logfile $params.logDir/$entities" + "_connectivity.log" : ""} \
+            ${(params.logDir) ? "--logfile $params.logDir/$entities"  + "_$method" + "_connectivity.log" : ""} \
             ${volTableArg}
 
     """
@@ -96,7 +96,7 @@ workflow volumeCensor{
                                     e,m,c,
                                     params.vol_parcels,
                                     "${e}_desc-${m}_connectivity.tsv"
-                                ]}
+                                ]} | view
             deriveConnectivity(i_connectivity)
         }
 }

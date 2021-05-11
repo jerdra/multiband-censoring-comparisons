@@ -18,7 +18,7 @@ from nibabel.cifti2 import cifti2_axes, Cifti2Image
 OBJECT_MAPPING = {
     "base": censor_method.BaseClean,
     "powers": censor_method.PowersClean,
-    "lindquist-powers": censor_method.LindquistPowersClean,
+    "lindquistpowers": censor_method.LindquistPowersClean,
     "dct": censor_method.DCTBasisClean,
     "fourier": censor_method.FourierBasisClean
 }
