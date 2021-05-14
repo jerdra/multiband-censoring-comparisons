@@ -73,6 +73,7 @@ def surface_connectivity(dtseries, dlabel):
     zts = []
     col_names = []
     for struct, dsl, tsl in matched_structs:
+
         vtsl = ax_bm_ser.vertex[tsl]
 
         # Re-order parcellations to monotonically increasing
@@ -94,7 +95,7 @@ def surface_connectivity(dtseries, dlabel):
         zts.append(h_zts)
 
         # Assuming we have only 1 map
-        col_names += [ax_lbl.label[0][i][0] for i in lbl_ids]
+        col_names += [f"{ax_lbl.label[0][i][0]}_{struct}" for i in lbl_ids]
 
     zts = np.vstack(zts)
     R = (zts @ zts.T)
